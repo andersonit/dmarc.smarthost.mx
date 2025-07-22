@@ -48,12 +48,8 @@ use Liuch\DmarcSrg\Mail\MailBoxes;
 use Liuch\DmarcSrg\Report\ReportFetcher;
 use Liuch\DmarcSrg\Sources\Source;
 use Liuch\DmarcSrg\Sources\MailboxSource;
-use Liuch\DmarcSrg\Sources\DirectorySource;
-use Liuch\DmarcSrg\Sources\RemoteFilesystemSource;
-use Liuch\DmarcSrg\Directories\DirectoryList;
 use Liuch\DmarcSrg\Exception\SoftException;
 use Liuch\DmarcSrg\Exception\RuntimeException;
-use Liuch\DmarcSrg\RemoteFilesystems\RemoteFilesystemList;
 
 require realpath(__DIR__ . '/..') . '/init.php';
 
@@ -86,14 +82,14 @@ for ($i = 1; $i < count($argv); ++$i) {
             break;
     }
 }
-if ($source && !in_array($source, [ 'email', 'directory', 'remotefs' ])) {
-    echo 'Invalid source type "' . $source . '". "email", "directory" or "remotefs" expected.' . PHP_EOL;
+if ($source && !in_array($source, [ 'email' ])) {
+    echo 'Invalid source type "' . $source . '". Only "email" is supported.' . PHP_EOL;
     exit(1);
 }
 
 if ($usage) {
     echo PHP_EOL;
-    echo "Usage: {$argv[0]} [source=email|directory|remotefs]", PHP_EOL;
+    echo "Usage: {$argv[0]} [source=email]", PHP_EOL;
     exit(1);
 }
 
@@ -117,61 +113,22 @@ $updateProblems = function (int $state, array &$errors, array &$problems): void 
 };
 
 const MAILBOX_LIST   = 1;
-const DIRECTORY_LIST = 2;
-const REMOTEFS_LIST  = 3;
 const FETCHER        = 4;
 
 $core = Core::instance();
 $core->setCurrentUser('admin');
 
 $state = MAILBOX_LIST;
-if (!$source || $source === 'email') {
-    $mb_list = new MailBoxes();
-    $mb_cnt = $mb_list->count();
-    if ($mb_cnt > 0) {
-        $errors  = [ 'messages' => [], 'debug_info' => null ];
-        try {
-            $core->checkDependencies('imap,xml,zip');
-            for ($mb_num = 1; $mb_num <= $mb_cnt; ++$mb_num) {
-                try {
-                    $sou_list[] = new MailboxSource($mb_list->mailbox($mb_num));
-                } catch (RuntimeException $e) {
-                    $addError($e, $errors);
-                }
-            }
-        } catch (SoftException $e) {
-            $errors['messages'][] = $e->getMessage();
-        }
-        $updateProblems($state, $errors, $problems);
-    }
-}
-
-$state = DIRECTORY_LIST;
-if (!$source || $source === 'directory') {
-    $errors = [ 'messages' => [], 'debug_info' => null ];
+// Only process email/mailbox sources
+$mb_list = new MailBoxes();
+$mb_cnt = $mb_list->count();
+if ($mb_cnt > 0) {
+    $errors  = [ 'messages' => [], 'debug_info' => null ];
     try {
-        $core->checkDependencies('xml,zip');
-        foreach ((new DirectoryList())->list() as $dir) {
+        $core->checkDependencies('imap,xml,zip');
+        for ($mb_num = 1; $mb_num <= $mb_cnt; ++$mb_num) {
             try {
-                $sou_list[] = new DirectorySource($dir);
-            } catch (RuntimeException $e) {
-                $addError($e, $errors);
-            }
-        }
-    } catch (SoftException $e) {
-        $errors['messages'][] = $e->getMessage();
-    }
-    $updateProblems($state, $errors, $problems);
-}
-
-$state = REMOTEFS_LIST;
-if ((!$source && $core->config('remote_filesystems', null)) || $source === 'remotefs') {
-    $errors = [ 'messages' => [], 'debug_info' => null ];
-    try {
-        $core->checkDependencies('flyfs,xml,zip');
-        foreach ((new RemoteFilesystemList(true))->list() as $fs) {
-            try {
-                $sou_list[] = new RemoteFilesystemSource($fs);
+                $sou_list[] = new MailboxSource($mb_list->mailbox($mb_num));
             } catch (RuntimeException $e) {
                 $addError($e, $errors);
             }
@@ -230,12 +187,6 @@ if (count($problems) > 0) {
         switch ($pr['state']) {
             case MAILBOX_LIST:
                 echo 'Failed to get mailbox list:';
-                break;
-            case DIRECTORY_LIST:
-                echo 'Failed to get directory list:';
-                break;
-            case REMOTEFS_LIST:
-                echo 'Failed to get remote filesystem list';
                 break;
             case FETCHER:
                 echo 'Failed to get incoming report:';

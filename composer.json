@@ -23,13 +23,7 @@
         "ext-pdo_mysql": "*",
         "ext-xml": "*",
         "ext-zip": "*",
-        "phpmailer/phpmailer": "^6.8.0",
-        "league/flysystem-aws-s3-v3": "^2.5 || ^3.25.1"
-    },
-    "require-dev": {
-        "php-parallel-lint/php-parallel-lint": "*",
-        "phpstan/phpstan": "*",
-        "phpunit/phpunit": "^9"
+        "phpmailer/phpmailer": "^6.10"
     },
     "scripts": {
         "phpstan" : "@php vendor/bin/phpstan analyse -- classes utils public config ",

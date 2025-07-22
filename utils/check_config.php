@@ -34,11 +34,9 @@
 namespace Liuch\DmarcSrg;
 
 use Liuch\DmarcSrg\Mail\MailBoxes;
-use Liuch\DmarcSrg\Directories\DirectoryList;
 use Liuch\DmarcSrg\Exception\SoftException;
 use Liuch\DmarcSrg\Exception\LogicException;
 use Liuch\DmarcSrg\Exception\RuntimeException;
-use Liuch\DmarcSrg\RemoteFilesystems\RemoteFilesystemList;
 
 require realpath(__DIR__ . '/..') . '/init.php';
 
@@ -204,104 +202,6 @@ try {
         }
     } catch (RuntimeException $e) {
         $endChecking($e->getMessage());
-    }
-
-    echo PHP_EOL, '=== DIRECTORIES ===', PHP_EOL;
-    $startChecking('Checking directories config');
-    try {
-        $dir_list = (new DirectoryList())->list();
-        $dir_lcnt = count($dir_list);
-        if ($dir_lcnt === 0) {
-            $endChecking('No directories found', RESULT_SUCCESS);
-        } else {
-            $endChecking("{$dir_lcnt} director" . ($dir_lcnt > 1 ? 'ies' : 'y') . ' found', RESULT_SUCCESS);
-            echo "  * Checking directories ({$dir_lcnt})", PHP_EOL;
-            foreach ($dir_list as $dir) {
-                $dir_a = $dir->toArray();
-                echo "    - {$dir_a['name']}", PHP_EOL;
-                $startChecking('Accessibility', 2);
-                $res = $dir->check();
-                if (!$res['error_code']) {
-                    $endChecking();
-                    $startChecking('Security', 2);
-                    try {
-                        $perms = fileperms($dir_a['location']);
-                        if ($perms === false) {
-                            throw new RuntimeException('Fileperms failed', RESULT_ERROR);
-                        }
-                        if ($perms & 0x2) {
-                            throw new RuntimeException(
-                                'Other users have write access to the directory',
-                                RESULT_WARNING
-                            );
-                        }
-                        $endChecking();
-                    } catch (RuntimeException $e) {
-                        $endChecking($e->getMessage(), $e->getCode());
-                    } catch (\ErrorException $e) {
-                        $endChecking($e->getMessage());
-                    }
-                } else {
-                    $endChecking($res['message'] ?? null);
-                }
-            }
-        }
-    } catch (SoftException $e) {
-        $endChecking($e->getMessage());
-    }
-
-    echo PHP_EOL, '=== REMOTE FILESYSTEMS ===', PHP_EOL;
-    $startChecking('Getting configuration');
-    $fs_list = $core->config('remote_filesystems');
-    if (is_array($fs_list) && count($fs_list) > 0) {
-        $endChecking();
-        try {
-            $startChecking('Checking installed packages');
-            try {
-                $core->checkDependencies('flyfs');
-            } catch (SoftException $e) {
-                throw new SoftException('Flysystem package is not installed');
-            }
-            $endChecking();
-            $startChecking('Analizing configuration data');
-            try {
-                $fs_list = (new RemoteFilesystemList(false))->list();
-                $endChecking();
-            } catch (LogicException $e) {
-                $endChecking($e->getMessage());
-                $fs_list = [];
-            }
-            $fs_lcnt = count($fs_list);
-            if ($fs_lcnt > 0) {
-                echo "  * Checking remote filesystems ({$fs_lcnt})", PHP_EOL;
-                foreach ($fs_list as $fs) {
-                    $fs_a = $fs->toArray();
-                    echo "    - {$fs_a['name']}", PHP_EOL;
-                    $startChecking('Accessibility', 2);
-                    $res = $fs->check();
-                    if (!$res['error_code']) {
-                        $endChecking();
-                        //$startChecking('Security', 2);
-                        //try {
-                        //    if ($fs->isPublic()) {
-                        //        throw new RuntimeException('Anyone can access the files on this filesystem');
-                        //    }
-                        //    $endChecking();
-                        //} catch (RuntimeException $e) {
-                        //    $endChecking($e->getMessage(), RESULT_WARNING);
-                        //} catch (\ErrorException $e) {
-                        //    $endChecking($e->getMessage());
-                        //}
-                    } else {
-                        $endChecking($res['message'] ?? null);
-                    }
-                }
-            }
-        } catch (SoftException $e) {
-            $endChecking($e->getMessage());
-        }
-    } else {
-        $endChecking('Configuration not found', RESULT_SKIPPED);
     }
 
     echo PHP_EOL, '=== REPORT MAILER ===', PHP_EOL;
